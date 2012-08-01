@@ -12,10 +12,9 @@ TagExchangeRF12::TagExchangeRF12(void)
 	_longHandler_callback = NULL;
 	_textHandler_callback = NULL;
 	
-	// init packet XXX FIXME REFACTOR
-	_tagtxpacket.msg_id = 0;
-	_tagtxpacket.tagcount = 0;
-	_tagtxpacket.timestamp = 0;
+	// init transmit buffer
+	initTagTxBuffer();
+
 }
 
 void TagExchangeRF12::registerFloatHandler(TagUpdateFloatCallbackFunction callbackFunction)
@@ -32,7 +31,6 @@ void TagExchangeRF12::registerTextHandler(TagUpdateTextCallbackFunction callback
 {
 	_textHandler_callback = callbackFunction;
 }
-
 
 
 
@@ -90,6 +88,13 @@ void TagExchangeRF12::poll(void)
 			}
         }
     }
+	
+	
+	// send queued outgoing packets when the timeout value is reached
+	if (_tagtxpacket.tagcount > 0 && millis() >= _tagtxpacket_timeout) {
+		publishNow();
+	}
+	
 }
 
 
@@ -108,12 +113,19 @@ void TagExchangeRF12::publishFloat(int tagid, unsigned long timestamp, float val
 	
 	if (_tagtxpacket.tagcount == 0) {
 		_tagtxpacket.timestamp = timestamp;
+		
+		// set timeout value for the transmission delay
+		_tagtxpacket_timeout = millis() + MAX_TRANSMIT_DELAY;
 	}
 	
 	// enqueue the tagvalue
 	_tagtxpacket.data[_tagtxpacket.tagcount].tagid = (tagid & 0x3fff) | (tagtype_float << 14);
     _tagtxpacket.data[_tagtxpacket.tagcount].value.float_value = value;
 	_tagtxpacket.tagcount++;
+
+#ifdef TAGXCH_DEBUG_TXBUFFER	
+	Serial.println("DBG: ENQUEUE FLOAT");
+#endif
 }
 
 void TagExchangeRF12::publishLong(int tagid, long value)
@@ -130,12 +142,19 @@ void TagExchangeRF12::publishLong(int tagid, unsigned long timestamp, long value
 	
 	if (_tagtxpacket.tagcount == 0) {
 		_tagtxpacket.timestamp = timestamp;
+
+		// set timeout value for the transmission delay
+		_tagtxpacket_timeout = millis() + MAX_TRANSMIT_DELAY;
 	}
 	
 	// enqueue the tagvalue
 	_tagtxpacket.data[_tagtxpacket.tagcount].tagid = (tagid & 0x3fff) | (tagtype_long << 14);
     _tagtxpacket.data[_tagtxpacket.tagcount].value.long_value = value;
 	_tagtxpacket.tagcount++;
+	
+#ifdef TAGXCH_DEBUG_TXBUFFER	
+	Serial.println("DBG: ENQUEUE LONG");
+#endif
 }
 		
 		
@@ -144,18 +163,28 @@ int TagExchangeRF12::publishNow(void)
 {            
 	int res = 0;
 	if (_tagtxpacket.tagcount > 0) {
-      while (!rf12_canSend())
-        rf12_recvDone();
-      rf12_sendStart(0, &_tagtxpacket, 6 + (_tagtxpacket.tagcount * sizeof(TagData)));  //sizeof packet
-      rf12_sendWait(0);
+		while (!rf12_canSend())
+			rf12_recvDone();
+		rf12_sendStart(0, &_tagtxpacket, 6 + (_tagtxpacket.tagcount * sizeof(TagData)));  //sizeof packet
+		rf12_sendWait(0);
 	  
-	  res = _tagtxpacket.tagcount;
+#ifdef TAGXCH_DEBUG_TXBUFFER		  
+		Serial.println("DBG: TRANSMIT BUFFER");
+#endif
+
+  		res = _tagtxpacket.tagcount;
 	  
-	  // init transmit buffer after sending 	XXX FIXME REFACTOR
-	  _tagtxpacket.msg_id = msg_tag;
-	  _tagtxpacket.tagcount = 0;
-	  _tagtxpacket.timestamp = 0;
+		// init transmit buffer after sending
+		initTagTxBuffer();
 	}
 	return res;
+}
+
+
+void TagExchangeRF12::initTagTxBuffer(void)
+{
+	_tagtxpacket.msg_id = msg_tag;
+	_tagtxpacket.tagcount = 0;
+	_tagtxpacket.timestamp = 0;
 }
 

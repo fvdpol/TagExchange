@@ -5,7 +5,14 @@
 
 #include <JeeLib.h>
 
+// maximum number of tags that can be stored in a packet transmitted over the RF12 network
 #define MAX_TAGS_PER_RF12_MSG	10
+
+// maximum transission delay; defines how many ms the system will wait for additional tags 
+// to group in the same packet.
+#define MAX_TRANSMIT_DELAY		200
+
+//#define TAGXCH_DEBUG_TXBUFFER
 
 class TagExchange {
 	public:
@@ -50,7 +57,6 @@ class TagExchange {
 														// >> can we convert to a malloc'ed array; where is size defined in class invocation?
 		} Packet_TagData;
 
-		void Hello(void);
 
 	
 	private:
@@ -107,10 +113,11 @@ class TagExchangeRF12 : TagExchange
 		TagUpdateLongCallbackFunction	_longHandler_callback;
 		TagUpdateTextCallbackFunction	_textHandler_callback;
 		
+		void initTagTxBuffer(void);
 	
 		// private data
-		Packet_TagData _tagtxpacket;	// buffer for transmitting tag updates
-		unsigned long  _tagtxpacket_ts;	// timestamp of oldest message in buffer
+		Packet_TagData _tagtxpacket;			// buffer for transmitting tag updates
+		unsigned long  _tagtxpacket_timeout;	// timeout value for the transmission delay; send when this ms value is reached
 	
 };
 
