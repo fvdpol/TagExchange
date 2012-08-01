@@ -5,46 +5,59 @@
 
 #include <JeeLib.h>
 
-//Class TagExchange {
-
-typedef enum {
-  msg_tag             = 1,
-  msg_tagrequest      = 2,
-  msg_taggroup        = 3,
-  msg_taggrouprequest = 4
-} MsgType;
-
-typedef struct {
-  unsigned int tagid;
-  union {
-    float float_value;  	// type 0 - tagtype_float
-    long  long_value;   	// type 1 - tagtype_long
-	char  text_value[4];	// type 2 - tagtype_text
-  } value; 
-} TagData;
-
 #define MAX_TAGS_PER_RF12_MSG	10
 
-typedef enum {
-  tagtype_float = 0,
-  tagtype_long = 1,
-  tagtype_text = 2
-} TagType;
+class TagExchange {
+	public:
+	
+		typedef enum {
+			msg_tag             = 1,
+			msg_tagrequest      = 2,
+			msg_taggroup        = 3,
+			msg_taggrouprequest = 4
+		} MsgType;
 
-typedef struct {
-  // header
-  byte msg_id;      // identifier 
-  
-  byte tagcount;     // number of tags in packet
-  unsigned long timestamp;	// seconds since 1970; or 0 if unset.
-  
-  // payload packet max size = 66 bytes
-  // 2+4=6 bytes for the header; leaves 60 bytes for the tag data
-  // 6 bytes per message: maximum 10 tags 
-  TagData data[MAX_TAGS_PER_RF12_MSG];
-} Packet_TagData;
+		typedef enum {
+			tagtype_float = 0,
+			tagtype_long = 1,
+			tagtype_text = 2
+		} TagType;
 
-//}
+		typedef struct {
+			unsigned int tagid;
+			union {
+				float float_value;  	// type 0 - tagtype_float
+				long  long_value;   	// type 1 - tagtype_long
+				char  text_value[4];	// type 2 - tagtype_text
+			} value; 
+		} TagData;
+	
+
+		typedef struct {
+			// header
+			byte msg_id;      // identifier 
+  
+			byte tagcount;     // number of tags in packet
+			unsigned long timestamp;	// seconds since 1970; or 0 if unset.
+  
+			// payload packet max size = 66 bytes
+			// 2+4=6 bytes for the header; leaves 60 bytes for the tag data
+			// 6 bytes per message: maximum 10 tags 
+			TagData data[MAX_TAGS_PER_RF12_MSG];		// FIXME -- max number of messages should be dynamic to allow different packet sizes 
+														// for serial/ethernet?
+														// 2nd thought... maybe not; 2nd alternative is to pack multiple of these packets in
+														// a single ethernet packet. MTU can be different in function of AVR memory (328p vs. mega)
+														// >> can we convert to a malloc'ed array; where is size defined in class invocation?
+		} Packet_TagData;
+
+		void Hello(void);
+
+	
+	private:
+	
+	
+		int _test;
+};
 
 
 
@@ -57,7 +70,7 @@ extern "C" {
 }
 
 
-class TagExchangeRF12
+class TagExchangeRF12 : TagExchange
 {
 	public:
 		// constructor
@@ -94,8 +107,8 @@ class TagExchangeRF12
 		TagUpdateLongCallbackFunction	_longHandler_callback;
 		TagUpdateTextCallbackFunction	_textHandler_callback;
 		
-		
-		
+	
+		// private data
 		Packet_TagData _tagtxpacket;	// buffer for transmitting tag updates
 		unsigned long  _tagtxpacket_ts;	// timestamp of oldest message in buffer
 	
