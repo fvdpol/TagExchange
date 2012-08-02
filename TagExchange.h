@@ -58,11 +58,8 @@ class TagExchange {
 		} Packet_TagData;
 
 
-	
 	private:
-	
-	
-		int _test;
+
 };
 
 
@@ -76,7 +73,7 @@ extern "C" {
 }
 
 
-class TagExchangeRF12 : TagExchange
+class TagExchangeRF12 : public TagExchange
 {
 	public:
 		// constructor
@@ -97,7 +94,7 @@ class TagExchangeRF12 : TagExchange
 		void publishLong(int tagid, long value);
 		void publishLong(int tagid, unsigned long timestamp, long value);
 		
-		int publishNow(void);	// returns the number of tags transmitted
+		int publishNow(bool force=true);	// returns the number of tags transmitted
 
 
 // when first tag is published; store in buffer
@@ -112,7 +109,7 @@ class TagExchangeRF12 : TagExchange
 		TagUpdateFloatCallbackFunction	_floatHandler_callback;
 		TagUpdateLongCallbackFunction	_longHandler_callback;
 		TagUpdateTextCallbackFunction	_textHandler_callback;
-		
+				
 		void initTagTxBuffer(void);
 	
 		// private data

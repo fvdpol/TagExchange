@@ -91,8 +91,8 @@ void TagExchangeRF12::poll(void)
 	
 	
 	// send queued outgoing packets when the timeout value is reached
-	if (_tagtxpacket.tagcount > 0 && millis() >= _tagtxpacket_timeout) {
-		publishNow();
+	if ((_tagtxpacket.tagcount > 0 && millis() >= _tagtxpacket_timeout) | (_tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG)) {
+		publishNow(false);
 	}
 	
 }
@@ -108,7 +108,7 @@ void TagExchangeRF12::publishFloat(int tagid, unsigned long timestamp, float val
 {
 	// if the timestamp does not match what is already enqueued or if there is no free space in the packet: send data immediately
 	if (timestamp != _tagtxpacket.timestamp || _tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG) {
-		publishNow();
+		publishNow(true);
 	}
 	
 	if (_tagtxpacket.tagcount == 0) {
@@ -137,7 +137,7 @@ void TagExchangeRF12::publishLong(int tagid, unsigned long timestamp, long value
 {
 	// if the timestamp does not match what is already enqueued or if there is no free space in the packet: send data immediately
 	if (timestamp != _tagtxpacket.timestamp || _tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG) {
-		publishNow();
+		publishNow(true);
 	}
 	
 	if (_tagtxpacket.tagcount == 0) {
@@ -159,10 +159,13 @@ void TagExchangeRF12::publishLong(int tagid, unsigned long timestamp, long value
 		
 		
 // this functions results in immediate publishing of the tags enqueued. returns the number of tag values send.
-int TagExchangeRF12::publishNow(void)
+// if the force parameter is set to true the function will block until the packet can be send, otherwise the 
+// function will give up if the RF12M modem is busy.
+int TagExchangeRF12::publishNow(bool force)
 {            
 	int res = 0;
-	if (_tagtxpacket.tagcount > 0) {
+	
+	if ((_tagtxpacket.tagcount > 0) & (force | rf12_canSend())) {
 		while (!rf12_canSend())
 			rf12_recvDone();
 		rf12_sendStart(0, &_tagtxpacket, 6 + (_tagtxpacket.tagcount * sizeof(TagData)));  //sizeof packet
