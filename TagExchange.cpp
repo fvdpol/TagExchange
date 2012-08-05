@@ -8,20 +8,6 @@
 // constructor
 TagExchange::TagExchange(void)
 {
-//	_floatHandler_callback = NULL;
-//	_longHandler_callback = NULL;
-//	_textHandler_callback = NULL;
-	
-	// init transmit buffer
-//	initTagTxBuffer();
-	
-	Serial.println("TagExchange::TagExchange()");
-}
-
-
-// constructor
-TagExchangeRF12::TagExchangeRF12(void)
-{
 	_floatHandler_callback = NULL;
 	_longHandler_callback = NULL;
 	_textHandler_callback = NULL;
@@ -29,22 +15,136 @@ TagExchangeRF12::TagExchangeRF12(void)
 	// init transmit buffer
 	initTagTxBuffer();
 	
-//	Serial.println("TagExchangeRF12::TagExchangeRF12()");
+//	Serial.println("TagExchange::TagExchange()");
 }
 
-void TagExchangeRF12::registerFloatHandler(TagUpdateFloatCallbackFunction callbackFunction)
+
+void TagExchange::registerFloatHandler(TagUpdateFloatCallbackFunction callbackFunction)
 {
 	_floatHandler_callback = callbackFunction;
 }
 
-void TagExchangeRF12::registerLongHandler(TagUpdateLongCallbackFunction callbackFunction)
+void TagExchange::registerLongHandler(TagUpdateLongCallbackFunction callbackFunction)
 {
 	_longHandler_callback = callbackFunction;
 }
 
-void TagExchangeRF12::registerTextHandler(TagUpdateTextCallbackFunction callbackFunction)
+void TagExchange::registerTextHandler(TagUpdateTextCallbackFunction callbackFunction)
 {
 	_textHandler_callback = callbackFunction;
+}
+
+
+void TagExchange::initTagTxBuffer(void)
+{
+	_tagtxpacket.msg_id = msg_tag;
+	_tagtxpacket.tagcount = 0;
+	_tagtxpacket.timestamp = 0;
+}
+
+
+
+void TagExchange::publishFloat(int tagid, float value)
+{
+	publishFloat(tagid, 0, value);
+}
+
+void TagExchange::publishFloat(int tagid, unsigned long timestamp, float value)
+{
+	// if the timestamp does not match what is already enqueued or if there is no free space in the packet: send data immediately
+	if (timestamp != _tagtxpacket.timestamp || _tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG) {
+		publishNow(true);
+	}
+	
+	if (_tagtxpacket.tagcount == 0) {
+		_tagtxpacket.timestamp = timestamp;
+		
+		// set timeout value for the transmission delay
+		_tagtxpacket_timeout = millis() + MAX_TRANSMIT_DELAY;
+	}
+	
+	// enqueue the tagvalue
+	_tagtxpacket.data[_tagtxpacket.tagcount].tagid = (tagid & 0x3fff) | (tagtype_float << 14);
+    _tagtxpacket.data[_tagtxpacket.tagcount].value.float_value = value;
+	_tagtxpacket.tagcount++;
+
+#ifdef TAGXCH_DEBUG_TXBUFFER	
+	Serial.println(F("DBG: ENQUEUE FLOAT"));
+#endif
+}
+
+void TagExchange::publishLong(int tagid, long value)
+{
+	publishLong(tagid, 0, value);
+}
+
+void TagExchange::publishLong(int tagid, unsigned long timestamp, long value)
+{
+	// if the timestamp does not match what is already enqueued or if there is no free space in the packet: send data immediately
+	if (timestamp != _tagtxpacket.timestamp || _tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG) {
+		publishNow(true);
+	}
+	
+	if (_tagtxpacket.tagcount == 0) {
+		_tagtxpacket.timestamp = timestamp;
+
+		// set timeout value for the transmission delay
+		_tagtxpacket_timeout = millis() + MAX_TRANSMIT_DELAY;
+	}
+	
+	// enqueue the tagvalue
+	_tagtxpacket.data[_tagtxpacket.tagcount].tagid = (tagid & 0x3fff) | (tagtype_long << 14);
+    _tagtxpacket.data[_tagtxpacket.tagcount].value.long_value = value;
+	_tagtxpacket.tagcount++;
+	
+#ifdef TAGXCH_DEBUG_TXBUFFER	
+	Serial.println(F("DBG: ENQUEUE LONG"));
+#endif
+}
+
+
+
+		
+// this functions results in immediate publishing of the tags enqueued. returns the number of tag values send.
+// if the force parameter is set to true the function will block until the packet can be send, otherwise the 
+// function will give up if the RF12M modem is busy.
+int TagExchange::publishNow(bool force)
+{            
+	int res = 0;
+
+	Serial.println(F("TagExchange::publishNow()"));
+
+	
+//	if ((_tagtxpacket.tagcount > 0) & (force | rf12_canSend())) {
+//		while (!rf12_canSend())
+//			rf12_recvDone();
+//		rf12_sendStart(0, &_tagtxpacket, 6 + (_tagtxpacket.tagcount * sizeof(TagData)));  //sizeof packet
+//		rf12_sendWait(0);
+//	  
+//#ifdef TAGXCH_DEBUG_TXBUFFER		  
+//		Serial.println("DBG: TRANSMIT BUFFER");
+//#endif
+//
+  		res = _tagtxpacket.tagcount;
+//	  
+		// init transmit buffer after sending
+		initTagTxBuffer();
+//	}
+	return res;
+}
+
+
+
+
+
+
+
+
+// constructor
+TagExchangeRF12::TagExchangeRF12(void) : TagExchange()
+{
+	
+//	Serial.println("TagExchangeRF12::TagExchangeRF12()");
 }
 
 
@@ -87,19 +187,19 @@ void TagExchangeRF12::poll(void)
 				
 				
 				case msg_tagrequest:
-					Serial.println("Unhandled message: msg_tagrequest");
+					Serial.println(F("Unhandled message: msg_tagrequest"));
 					break;
 					
 				case msg_taggroup:
-					Serial.println("Unhandled message: msg_taggroup");
+					Serial.println(F("Unhandled message: msg_taggroup"));
 					break;
 
 				case msg_taggrouprequest:
-					Serial.println("Unhandled message: msg_taggrouprequest");
+					Serial.println(F("Unhandled message: msg_taggrouprequest"));
 					break;
 					
 				default:
-					Serial.println("Unhandled message: user defined");
+					Serial.println(F("Unhandled message: user defined"));
 			}
         }
     }
@@ -112,65 +212,6 @@ void TagExchangeRF12::poll(void)
 	
 }
 
-
-
-void TagExchangeRF12::publishFloat(int tagid, float value)
-{
-	publishFloat(tagid, 0, value);
-}
-
-void TagExchangeRF12::publishFloat(int tagid, unsigned long timestamp, float value)
-{
-	// if the timestamp does not match what is already enqueued or if there is no free space in the packet: send data immediately
-	if (timestamp != _tagtxpacket.timestamp || _tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG) {
-		publishNow(true);
-	}
-	
-	if (_tagtxpacket.tagcount == 0) {
-		_tagtxpacket.timestamp = timestamp;
-		
-		// set timeout value for the transmission delay
-		_tagtxpacket_timeout = millis() + MAX_TRANSMIT_DELAY;
-	}
-	
-	// enqueue the tagvalue
-	_tagtxpacket.data[_tagtxpacket.tagcount].tagid = (tagid & 0x3fff) | (tagtype_float << 14);
-    _tagtxpacket.data[_tagtxpacket.tagcount].value.float_value = value;
-	_tagtxpacket.tagcount++;
-
-#ifdef TAGXCH_DEBUG_TXBUFFER	
-	Serial.println("DBG: ENQUEUE FLOAT");
-#endif
-}
-
-void TagExchangeRF12::publishLong(int tagid, long value)
-{
-	publishLong(tagid, 0, value);
-}
-
-void TagExchangeRF12::publishLong(int tagid, unsigned long timestamp, long value)
-{
-	// if the timestamp does not match what is already enqueued or if there is no free space in the packet: send data immediately
-	if (timestamp != _tagtxpacket.timestamp || _tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG) {
-		publishNow(true);
-	}
-	
-	if (_tagtxpacket.tagcount == 0) {
-		_tagtxpacket.timestamp = timestamp;
-
-		// set timeout value for the transmission delay
-		_tagtxpacket_timeout = millis() + MAX_TRANSMIT_DELAY;
-	}
-	
-	// enqueue the tagvalue
-	_tagtxpacket.data[_tagtxpacket.tagcount].tagid = (tagid & 0x3fff) | (tagtype_long << 14);
-    _tagtxpacket.data[_tagtxpacket.tagcount].value.long_value = value;
-	_tagtxpacket.tagcount++;
-	
-#ifdef TAGXCH_DEBUG_TXBUFFER	
-	Serial.println("DBG: ENQUEUE LONG");
-#endif
-}
 		
 		
 // this functions results in immediate publishing of the tags enqueued. returns the number of tag values send.
@@ -187,7 +228,7 @@ int TagExchangeRF12::publishNow(bool force)
 		rf12_sendWait(0);
 	  
 #ifdef TAGXCH_DEBUG_TXBUFFER		  
-		Serial.println("DBG: TRANSMIT BUFFER");
+		Serial.println(F("DBG: TRANSMIT BUFFER"));
 #endif
 
   		res = _tagtxpacket.tagcount;
@@ -199,30 +240,12 @@ int TagExchangeRF12::publishNow(bool force)
 }
 
 
-void TagExchangeRF12::initTagTxBuffer(void)
-{
-	_tagtxpacket.msg_id = msg_tag;
-	_tagtxpacket.tagcount = 0;
-	_tagtxpacket.timestamp = 0;
-}
-
-
-
-
 
 
 // constructor
-TagExchangeStream::TagExchangeStream(Stream* s)
+TagExchangeStream::TagExchangeStream(Stream* s) : TagExchange()
 {
 	_stream = s;
-
-//	_floatHandler_callback = NULL;
-//	_longHandler_callback = NULL;
-//	_textHandler_callback = NULL;
-	
-	// init transmit buffer
-	initTagTxBuffer();
-
 
 //	Serial.println("TagExchangeStream::TagExchangeStream()");
 }
@@ -240,63 +263,6 @@ void TagExchangeStream::poll(void)
 }
 
 
-void TagExchangeStream::publishFloat(int tagid, float value)
-{
-	publishFloat(tagid, 0, value);
-}
-
-void TagExchangeStream::publishFloat(int tagid, unsigned long timestamp, float value)
-{
-	// if the timestamp does not match what is already enqueued or if there is no free space in the packet: send data immediately
-	if (timestamp != _tagtxpacket.timestamp || _tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG) {
-		publishNow(true);
-	}
-	
-	if (_tagtxpacket.tagcount == 0) {
-		_tagtxpacket.timestamp = timestamp;
-		
-		// set timeout value for the transmission delay
-		_tagtxpacket_timeout = millis() + MAX_TRANSMIT_DELAY;
-	}
-	
-	// enqueue the tagvalue
-	_tagtxpacket.data[_tagtxpacket.tagcount].tagid = (tagid & 0x3fff) | (tagtype_float << 14);
-    _tagtxpacket.data[_tagtxpacket.tagcount].value.float_value = value;
-	_tagtxpacket.tagcount++;
-
-#ifdef TAGXCH_DEBUG_TXBUFFER	
-	Serial.println("DBG: ENQUEUE FLOAT");
-#endif
-}
-
-void TagExchangeStream::publishLong(int tagid, long value)
-{
-	publishLong(tagid, 0, value);
-}
-
-void TagExchangeStream::publishLong(int tagid, unsigned long timestamp, long value)
-{
-	// if the timestamp does not match what is already enqueued or if there is no free space in the packet: send data immediately
-	if (timestamp != _tagtxpacket.timestamp || _tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG) {
-		publishNow(true);
-	}
-	
-	if (_tagtxpacket.tagcount == 0) {
-		_tagtxpacket.timestamp = timestamp;
-
-		// set timeout value for the transmission delay
-		_tagtxpacket_timeout = millis() + MAX_TRANSMIT_DELAY;
-	}
-	
-	// enqueue the tagvalue
-	_tagtxpacket.data[_tagtxpacket.tagcount].tagid = (tagid & 0x3fff) | (tagtype_long << 14);
-    _tagtxpacket.data[_tagtxpacket.tagcount].value.long_value = value;
-	_tagtxpacket.tagcount++;
-	
-#ifdef TAGXCH_DEBUG_TXBUFFER	
-	Serial.println("DBG: ENQUEUE LONG");
-#endif
-}
 
 // this functions results in immediate publishing of the tags enqueued. returns the number of tag values send.
 // if the force parameter is set to true the function will block until the packet can be send, otherwise the 
@@ -328,7 +294,7 @@ int TagExchangeStream::publishNow(bool force)
 	
 	  
 #ifdef TAGXCH_DEBUG_TXBUFFER		  
-		Serial.println("DBG: TRANSMIT BUFFER");
+		Serial.println(F("DBG: TRANSMIT BUFFER"));
 #endif
 
 		res = _tagtxpacket.tagcount;
@@ -340,14 +306,6 @@ int TagExchangeStream::publishNow(bool force)
 }
 
 
-void TagExchangeStream::initTagTxBuffer(void)
-{
-	_tagtxpacket.msg_id = msg_tag;
-	_tagtxpacket.tagcount = 0;
-	_tagtxpacket.timestamp = 0;
-}
-
-
 
 
 // constructor
@@ -355,18 +313,22 @@ TagExchangeHardwareSerial::TagExchangeHardwareSerial(HardwareSerial* s) : TagExc
 {
 	_stream = s;
 
-//	_floatHandler_callback = NULL;
-//	_longHandler_callback = NULL;
-//	_textHandler_callback = NULL;
-	
-	// init transmit buffer
-//	initTagTxBuffer();
-
-	_stream->println("### TagExchangeHardwareSerial Constructor ###");
 
 //	Serial.println("TagExchangeHardwareSerial::TagExchangeHardwareSerial()");
 	
 	
+}
+
+
+void TagExchangeHardwareSerial::poll(void) 
+{
+	// FIXME: handle incoming data
+	
+	
+	// send queued outgoing packets when the timeout value is reached
+	if ((_tagtxpacket.tagcount > 0 && millis() >= _tagtxpacket_timeout) | (_tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG)) {
+		publishNow(false);
+	}
 }
 
 
@@ -378,6 +340,8 @@ int TagExchangeHardwareSerial::publishNow(bool force)
 	int res = 0;
 	
 	// send data to the stream object
+	
+	_stream->print(">>@HW-SERIAL:");
 	_stream->print("$PKT:");
 	
 	byte txsize = 6 + (_tagtxpacket.tagcount * sizeof(TagData));
@@ -400,7 +364,7 @@ int TagExchangeHardwareSerial::publishNow(bool force)
 	
 	  
 #ifdef TAGXCH_DEBUG_TXBUFFER		  
-		Serial.println("DBG: TRANSMIT BUFFER");
+		Serial.println(F("DBG: TRANSMIT BUFFER"));
 #endif
 
 		res = _tagtxpacket.tagcount;

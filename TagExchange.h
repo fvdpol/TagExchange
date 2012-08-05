@@ -70,8 +70,32 @@ class TagExchange {
 		// constructor
 		TagExchange();
 	
+		
+		void registerFloatHandler(TagUpdateFloatCallbackFunction);
+		void registerLongHandler(TagUpdateLongCallbackFunction);
+		void registerTextHandler(TagUpdateTextCallbackFunction);
 
-	private:
+		void publishFloat(int tagid, float value);
+		void publishFloat(int tagid, unsigned long timestamp, float value);
+
+		void publishLong(int tagid, long value);
+		void publishLong(int tagid, unsigned long timestamp, long value);
+		
+		int publishNow(bool force=true);	// returns the number of tags transmitted
+	
+
+	protected:
+
+		// callback handlers
+		TagUpdateFloatCallbackFunction	_floatHandler_callback;
+		TagUpdateLongCallbackFunction	_longHandler_callback;
+		TagUpdateTextCallbackFunction	_textHandler_callback;
+		
+		void initTagTxBuffer(void);
+	
+
+		Packet_TagData _tagtxpacket;			// buffer for transmitting tag updates
+		unsigned long  _tagtxpacket_timeout;	// timeout value for the transmission delay; send when this ms value is reached
 
 };
 
@@ -87,39 +111,9 @@ class TagExchangeRF12 : public TagExchange
 		// call this often to keep the tag exchange of rf12 handling going
 		void poll(void);
 		
-		void registerFloatHandler(TagUpdateFloatCallbackFunction);
-		void registerLongHandler(TagUpdateLongCallbackFunction);
-		void registerTextHandler(TagUpdateTextCallbackFunction);
-		
-		
-		void publishFloat(int tagid, float value);
-		void publishFloat(int tagid, unsigned long timestamp, float value);
-
-		void publishLong(int tagid, long value);
-		void publishLong(int tagid, unsigned long timestamp, long value);
-		
 		int publishNow(bool force=true);	// returns the number of tags transmitted
 
-
-// when first tag is published; store in buffer
-// add additional tags
-// ==> until max buffer size reached OR maximum transmit delay reached (ms time since first msg)
-//
-// if tags are send *with* timestamp; break messages if timestamp timestamp differs from the timestamp of first message
-
-
 	protected:
-		// callback handlers
-		TagUpdateFloatCallbackFunction	_floatHandler_callback;
-		TagUpdateLongCallbackFunction	_longHandler_callback;
-		TagUpdateTextCallbackFunction	_textHandler_callback;
-				
-		void initTagTxBuffer(void);
-	
-		// private data
-		Packet_TagData _tagtxpacket;			// buffer for transmitting tag updates
-		unsigned long  _tagtxpacket_timeout;	// timeout value for the transmission delay; send when this ms value is reached
-	
 };
 
 
@@ -133,36 +127,12 @@ class TagExchangeStream : public TagExchange
 		//
 		
 		void poll(void);
-
-
-		void publishFloat(int tagid, float value);
-		void publishFloat(int tagid, unsigned long timestamp, float value);
-
-		void publishLong(int tagid, long value);
-		void publishLong(int tagid, unsigned long timestamp, long value);
 		
 		int publishNow(bool force=true);	// returns the number of tags transmitted
 
 		
 	protected:
-	
-		//HardwareSerial* _serial;
 		Stream* _stream;
-
-		// callback handlers
-		TagUpdateFloatCallbackFunction	_floatHandler_callback;
-		TagUpdateLongCallbackFunction	_longHandler_callback;
-		TagUpdateTextCallbackFunction	_textHandler_callback;
-
-		
-		void initTagTxBuffer(void);
-	
-		// private data
-		Packet_TagData _tagtxpacket;			// buffer for transmitting tag updates
-		unsigned long  _tagtxpacket_timeout;	// timeout value for the transmission delay; send when this ms value is reached
-		
-	
-	
 		
 };
 
@@ -176,36 +146,12 @@ class TagExchangeHardwareSerial : public TagExchangeStream
 		TagExchangeHardwareSerial(HardwareSerial* s);
 		
 		void poll(void);
-
-
-//		void publishFloat(int tagid, float value);
-//		void publishFloat(int tagid, unsigned long timestamp, float value);
-
-//		void publishLong(int tagid, long value);
-//		void publishLong(int tagid, unsigned long timestamp, long value);
 		
 		int publishNow(bool force=true);	// returns the number of tags transmitted
 
 		
 	protected:
-	
-		//HardwareSerial* _serial;
-		HardwareSerial* _stream;
-
-		// callback handlers
-//		TagUpdateFloatCallbackFunction	_floatHandler_callback;
-//		TagUpdateLongCallbackFunction	_longHandler_callback;
-//		TagUpdateTextCallbackFunction	_textHandler_callback;
-
-		
-//		void initTagTxBuffer(void);
-	
-		// private data
-//		Packet_TagData _tagtxpacket;			// buffer for transmitting tag updates
-//		unsigned long  _tagtxpacket_timeout;	// timeout value for the transmission delay; send when this ms value is reached
-		
-	
-		
+		HardwareSerial* _stream;		
 };
 
 
