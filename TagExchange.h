@@ -14,8 +14,17 @@
 
 //#define TAGXCH_DEBUG_TXBUFFER
 
+extern "C" {
+// callback function types
+    typedef void (*TagUpdateFloatCallbackFunction)(int tagid, unsigned long timestamp, float value);
+    typedef void (*TagUpdateLongCallbackFunction)(int tagid, unsigned long timestamp, long value);
+    typedef void (*TagUpdateTextCallbackFunction)(int tagid, unsigned long timestamp, char *value);
+}
+
+
 class TagExchange {
 	public:
+		// data types
 	
 		typedef enum {
 			msg_tag             = 1,
@@ -54,23 +63,18 @@ class TagExchange {
 														// for serial/ethernet?
 														// 2nd thought... maybe not; 2nd alternative is to pack multiple of these packets in
 														// a single ethernet packet. MTU can be different in function of AVR memory (328p vs. mega)
-														// >> can we convert to a malloc'ed array; where is size defined in class invocation?
+														// >> can we convert to a malloc'ed array; where is size defined in class invocation?														
 		} Packet_TagData;
 
+		
+		// constructor
+		TagExchange();
+	
 
 	private:
 
 };
 
-
-
-
-extern "C" {
-// callback function types
-    typedef void (*TagUpdateFloatCallbackFunction)(int tagid, unsigned long timestamp, float value);
-    typedef void (*TagUpdateLongCallbackFunction)(int tagid, unsigned long timestamp, long value);
-    typedef void (*TagUpdateTextCallbackFunction)(int tagid, unsigned long timestamp, char *value);
-}
 
 
 class TagExchangeRF12 : public TagExchange
@@ -104,7 +108,7 @@ class TagExchangeRF12 : public TagExchange
 // if tags are send *with* timestamp; break messages if timestamp timestamp differs from the timestamp of first message
 
 
-	private:
+	protected:
 		// callback handlers
 		TagUpdateFloatCallbackFunction	_floatHandler_callback;
 		TagUpdateLongCallbackFunction	_longHandler_callback;
@@ -117,6 +121,94 @@ class TagExchangeRF12 : public TagExchange
 		unsigned long  _tagtxpacket_timeout;	// timeout value for the transmission delay; send when this ms value is reached
 	
 };
+
+
+
+class TagExchangeStream : public TagExchange
+{
+	public:
+		// constructor 
+		// mandatory argument is the Serial port we want to use
+		TagExchangeStream(Stream* s);
+		//
+		
+		void poll(void);
+
+
+		void publishFloat(int tagid, float value);
+		void publishFloat(int tagid, unsigned long timestamp, float value);
+
+		void publishLong(int tagid, long value);
+		void publishLong(int tagid, unsigned long timestamp, long value);
+		
+		int publishNow(bool force=true);	// returns the number of tags transmitted
+
+		
+	protected:
+	
+		//HardwareSerial* _serial;
+		Stream* _stream;
+
+		// callback handlers
+		TagUpdateFloatCallbackFunction	_floatHandler_callback;
+		TagUpdateLongCallbackFunction	_longHandler_callback;
+		TagUpdateTextCallbackFunction	_textHandler_callback;
+
+		
+		void initTagTxBuffer(void);
+	
+		// private data
+		Packet_TagData _tagtxpacket;			// buffer for transmitting tag updates
+		unsigned long  _tagtxpacket_timeout;	// timeout value for the transmission delay; send when this ms value is reached
+		
+	
+	
+		
+};
+
+
+
+class TagExchangeHardwareSerial : public TagExchangeStream
+{
+	public:
+		// constructor 
+		// mandatory argument is the Serial port we want to use
+		TagExchangeHardwareSerial(HardwareSerial* s);
+		
+		void poll(void);
+
+
+//		void publishFloat(int tagid, float value);
+//		void publishFloat(int tagid, unsigned long timestamp, float value);
+
+//		void publishLong(int tagid, long value);
+//		void publishLong(int tagid, unsigned long timestamp, long value);
+		
+		int publishNow(bool force=true);	// returns the number of tags transmitted
+
+		
+	protected:
+	
+		//HardwareSerial* _serial;
+		HardwareSerial* _stream;
+
+		// callback handlers
+//		TagUpdateFloatCallbackFunction	_floatHandler_callback;
+//		TagUpdateLongCallbackFunction	_longHandler_callback;
+//		TagUpdateTextCallbackFunction	_textHandler_callback;
+
+		
+//		void initTagTxBuffer(void);
+	
+		// private data
+//		Packet_TagData _tagtxpacket;			// buffer for transmitting tag updates
+//		unsigned long  _tagtxpacket_timeout;	// timeout value for the transmission delay; send when this ms value is reached
+		
+	
+		
+};
+
+
 
 
 

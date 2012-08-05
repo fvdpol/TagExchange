@@ -6,6 +6,20 @@
 
 
 // constructor
+TagExchange::TagExchange(void)
+{
+//	_floatHandler_callback = NULL;
+//	_longHandler_callback = NULL;
+//	_textHandler_callback = NULL;
+	
+	// init transmit buffer
+//	initTagTxBuffer();
+	
+	Serial.println("TagExchange::TagExchange()");
+}
+
+
+// constructor
 TagExchangeRF12::TagExchangeRF12(void)
 {
 	_floatHandler_callback = NULL;
@@ -14,7 +28,8 @@ TagExchangeRF12::TagExchangeRF12(void)
 	
 	// init transmit buffer
 	initTagTxBuffer();
-
+	
+//	Serial.println("TagExchangeRF12::TagExchangeRF12()");
 }
 
 void TagExchangeRF12::registerFloatHandler(TagUpdateFloatCallbackFunction callbackFunction)
@@ -189,5 +204,210 @@ void TagExchangeRF12::initTagTxBuffer(void)
 	_tagtxpacket.msg_id = msg_tag;
 	_tagtxpacket.tagcount = 0;
 	_tagtxpacket.timestamp = 0;
+}
+
+
+
+
+
+
+// constructor
+TagExchangeStream::TagExchangeStream(Stream* s)
+{
+	_stream = s;
+
+//	_floatHandler_callback = NULL;
+//	_longHandler_callback = NULL;
+//	_textHandler_callback = NULL;
+	
+	// init transmit buffer
+	initTagTxBuffer();
+
+
+//	Serial.println("TagExchangeStream::TagExchangeStream()");
+}
+
+
+void TagExchangeStream::poll(void) 
+{
+	// FIXME: handle incoming data
+	
+	
+	// send queued outgoing packets when the timeout value is reached
+	if ((_tagtxpacket.tagcount > 0 && millis() >= _tagtxpacket_timeout) | (_tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG)) {
+		publishNow(false);
+	}
+}
+
+
+void TagExchangeStream::publishFloat(int tagid, float value)
+{
+	publishFloat(tagid, 0, value);
+}
+
+void TagExchangeStream::publishFloat(int tagid, unsigned long timestamp, float value)
+{
+	// if the timestamp does not match what is already enqueued or if there is no free space in the packet: send data immediately
+	if (timestamp != _tagtxpacket.timestamp || _tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG) {
+		publishNow(true);
+	}
+	
+	if (_tagtxpacket.tagcount == 0) {
+		_tagtxpacket.timestamp = timestamp;
+		
+		// set timeout value for the transmission delay
+		_tagtxpacket_timeout = millis() + MAX_TRANSMIT_DELAY;
+	}
+	
+	// enqueue the tagvalue
+	_tagtxpacket.data[_tagtxpacket.tagcount].tagid = (tagid & 0x3fff) | (tagtype_float << 14);
+    _tagtxpacket.data[_tagtxpacket.tagcount].value.float_value = value;
+	_tagtxpacket.tagcount++;
+
+#ifdef TAGXCH_DEBUG_TXBUFFER	
+	Serial.println("DBG: ENQUEUE FLOAT");
+#endif
+}
+
+void TagExchangeStream::publishLong(int tagid, long value)
+{
+	publishLong(tagid, 0, value);
+}
+
+void TagExchangeStream::publishLong(int tagid, unsigned long timestamp, long value)
+{
+	// if the timestamp does not match what is already enqueued or if there is no free space in the packet: send data immediately
+	if (timestamp != _tagtxpacket.timestamp || _tagtxpacket.tagcount >= MAX_TAGS_PER_RF12_MSG) {
+		publishNow(true);
+	}
+	
+	if (_tagtxpacket.tagcount == 0) {
+		_tagtxpacket.timestamp = timestamp;
+
+		// set timeout value for the transmission delay
+		_tagtxpacket_timeout = millis() + MAX_TRANSMIT_DELAY;
+	}
+	
+	// enqueue the tagvalue
+	_tagtxpacket.data[_tagtxpacket.tagcount].tagid = (tagid & 0x3fff) | (tagtype_long << 14);
+    _tagtxpacket.data[_tagtxpacket.tagcount].value.long_value = value;
+	_tagtxpacket.tagcount++;
+	
+#ifdef TAGXCH_DEBUG_TXBUFFER	
+	Serial.println("DBG: ENQUEUE LONG");
+#endif
+}
+
+// this functions results in immediate publishing of the tags enqueued. returns the number of tag values send.
+// if the force parameter is set to true the function will block until the packet can be send, otherwise the 
+// function will give up if the RF12M modem is busy.
+int TagExchangeStream::publishNow(bool force)
+{            
+	int res = 0;
+	
+	// send data to the stream object
+	_stream->print("$PKT:");
+	
+	byte txsize = 6 + (_tagtxpacket.tagcount * sizeof(TagData));
+	byte* data = (byte*)(&_tagtxpacket);
+	unsigned int csum = 0;
+	
+	for (byte i = 0; i < txsize; ++i) {
+		byte b = *data++;
+		_stream->print(b,HEX);
+		_stream->print(",");	
+		csum += b;
+	}
+	
+	// add checksum code to detect if packet was received correctly
+	// simple calculate a unsigned 16bit sum of all bytes in the data packet
+	_stream->print("X:");	
+	_stream->print(csum,HEX);
+		
+	_stream->println(":END$");
+	
+	  
+#ifdef TAGXCH_DEBUG_TXBUFFER		  
+		Serial.println("DBG: TRANSMIT BUFFER");
+#endif
+
+		res = _tagtxpacket.tagcount;
+	  
+		// init transmit buffer after sending
+	initTagTxBuffer();
+
+	return res;
+}
+
+
+void TagExchangeStream::initTagTxBuffer(void)
+{
+	_tagtxpacket.msg_id = msg_tag;
+	_tagtxpacket.tagcount = 0;
+	_tagtxpacket.timestamp = 0;
+}
+
+
+
+
+// constructor
+TagExchangeHardwareSerial::TagExchangeHardwareSerial(HardwareSerial* s) : TagExchangeStream(s)
+{
+	_stream = s;
+
+//	_floatHandler_callback = NULL;
+//	_longHandler_callback = NULL;
+//	_textHandler_callback = NULL;
+	
+	// init transmit buffer
+//	initTagTxBuffer();
+
+	_stream->println("### TagExchangeHardwareSerial Constructor ###");
+
+//	Serial.println("TagExchangeHardwareSerial::TagExchangeHardwareSerial()");
+	
+	
+}
+
+
+// this functions results in immediate publishing of the tags enqueued. returns the number of tag values send.
+// if the force parameter is set to true the function will block until the packet can be send, otherwise the 
+// function will give up if the RF12M modem is busy.
+int TagExchangeHardwareSerial::publishNow(bool force)
+{            
+	int res = 0;
+	
+	// send data to the stream object
+	_stream->print("$PKT:");
+	
+	byte txsize = 6 + (_tagtxpacket.tagcount * sizeof(TagData));
+	byte* data = (byte*)(&_tagtxpacket);
+	unsigned int csum = 0;
+	
+	for (byte i = 0; i < txsize; ++i) {
+		byte b = *data++;
+		_stream->print(b,HEX);
+		_stream->print(",");	
+		csum += b;
+	}
+	
+	// add checksum code to detect if packet was received correctly
+	// simple calculate a unsigned 16bit sum of all bytes in the data packet
+	_stream->print("X:");	
+	_stream->print(csum,HEX);
+		
+	_stream->println(":END$");
+	
+	  
+#ifdef TAGXCH_DEBUG_TXBUFFER		  
+		Serial.println("DBG: TRANSMIT BUFFER");
+#endif
+
+		res = _tagtxpacket.tagcount;
+	  
+		// init transmit buffer after sending
+	initTagTxBuffer();
+
+	return res;
 }
 
